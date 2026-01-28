@@ -221,6 +221,16 @@ class CultureSPAEvaluator:
             # 判断是否一致
             is_correct = extracted_answer == expected_output
 
+            # 打印前三条样本的详细信息
+            if i < 3:
+                print(f"\n=== 样本 {i+1} ===")
+                print(f"问题 (instruction): {instruction}")
+                print(f"期望答案 (output): {expected_output}")
+                print(f"模型生成回答: {model_response}")
+                print(f"提取答案: {extracted_answer}")
+                print(f"是否正确: {is_correct}")
+                print("=" * 60)
+
             # 记录结果
             result_item = {
                 "question_id": i + 1,
@@ -276,12 +286,12 @@ class CultureSPAEvaluator:
         }
 
         # 保存详细结果
-        answers_file = os.path.join(output_dir, f"generated_answers_{dataset_tag}.json")
+        answers_file = os.path.join(output_dir, "generated_answers.json")
         with open(answers_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
 
         # 保存评估结果
-        eval_file = os.path.join(output_dir, f"eval_result_{dataset_tag}.json")
+        eval_file = os.path.join(output_dir, "eval_results.json")
         with open(eval_file, 'w', encoding='utf-8') as f:
             json.dump(final_results, f, ensure_ascii=False, indent=2)
 
