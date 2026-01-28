@@ -108,7 +108,7 @@ class CultureSPAEvaluator:
 
         return ""
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.1) -> str:
+    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.0) -> str:
         """
         生成模型回复
 
@@ -121,32 +121,28 @@ class CultureSPAEvaluator:
             模型生成的回复
         """
         try:
-            # 编码输入
-            inputs = self.tokenizer.encode(instruction, return_tensors="pt")
+            # 编码输入并移动到正确设备
+            inputs = self.tokenizer.encode(instruction, return_tensors="pt").to(self.device)
             input_length = inputs.shape[1]
 
-            print(f"生成回复 (输入长度: {input_length})...")
-            print(f"系统指令: ")
-            print(f"用户问题: {repr((instruction,))}")
 
-            # 生成回复
+            # 生成回复 - 优化推理速度
             with torch.no_grad():
                 outputs = self.model.generate(
-                    inputs.to(self.device),
+                    inputs,
                     max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                    do_sample=temperature > 0,
-                    top_p=0.9 if temperature > 0 else None,
+                    do_sample=False,  # 使用贪婪解码，更快
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    repetition_penalty=1.1,
+                    use_cache=True,
+                    early_stopping=True,
                 )
 
             # 解码回复（只取新生成的部分）
-            full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            response = full_response[len(instruction):].strip()
+            input_tokens = inputs.shape[1]
+            generated_tokens = outputs[0][input_tokens:]
+            response = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
 
-            print(f"模型回复: {response}")
             return response
 
         except Exception as e:
