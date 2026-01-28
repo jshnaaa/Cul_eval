@@ -1,0 +1,63 @@
+{
+  "cookies": [
+    {
+      "name": "__Secure-STRP",
+      "value": "AD6Dogt10jCJcpXjsWPhJkQS8kB3bp7PGCig54DROnXAFDtZK7INEiavMHyRnAOFhmJCP5bI16mmjaPt533bOs4ZnYFl5iz0dCG_",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1769513936.000051,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "AEC",
+      "value": "AaJma5ut1Z5jTSQLeegyAJLbRjv-3QtR3puwdaPgYM1z0ZvevNG97BL0kQE",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1785065636.00013,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__Secure-BUCKET",
+      "value": "CBE",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1785065636.000176,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "NID",
+      "value": "528=Bpa5IqiNP2rWZn5PA1xH3ga39Bo1u0_n7l88IQ3I3m2eMgNSj95lOgzP9t7GSXeveZGP8OhQT5UdQj3jZbMExZZgNZ5uTMiJ-3sCM7l8Rhrn6Fmv5L6ZU1aRxYQKAvZEpd-GfsT-87SyXIvlPOVB24qUya634irJcin_0nGvYj3fTWwHBsm9ENLEoznCYPdv1qy59RJ0AC-nWRp7bJqdiIq6StwLMLCra1ZcwY8Q_U4Z3vhvi6YmwLRpuH-FrgBeL0mf5NRg",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1785324835.655892,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://www.google.com",
+      "localStorage": [
+        {
+          "name": "sb_wiz.zpc.gws-wiz.",
+          "value": "{\"0\":[[\"fiorentina vs como prediction\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"pat mcgrath labs\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"highguard gameplay\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"nipah virus outbreak\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"ai assistant\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"storm chandra\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"houston rockets\",46,[3,362,143],{\"lm\":[],\"zf\":33,\"zh\":\"Houston Rockets\",\"zi\":\"Basketball team\",\"zl\":8,\"zp\":{\"gs_ssp\":\"eJzj4tDP1TfIyk1LMmD04s_ILy0uyc9TKMpPzk4tKQYAeS8JYg\"},\"zs\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAABQCAMAAAByFOZhAAABEVBMVEX////OEUHSEULOADzNADLJAC78///NADTSADzNADeEAADOADrMAC/v6evv9PPLACxzAADVeopuAABpAADKACeHbXGOh4jV29rgusGUkpKXmJjAAC7HADN9AAjMRGCqsbCkAByym56NGjPjsLnl7OunAAnPYHWvrq6YYGnr2t2SACK0ACLEKUykfYONNkbz//7KU2nOboDkxsvcm6bMysuKZGyPUFuZf4OjkZRsY2SoAC6IAA6sACWHk5FgQkfXjZk/AAA1Nja6ADNVAAOaEzPKt7q3d4JXEiFRV1Zxe3rADz+CQUxcTE9dABnWPly4ABWTAACpUmFaLjVxV1t1CSWRKz9wABh4HjBxMz6BUVt9dnc2xrCtAAAD30lEQVRYhb3X4XaaSBQA4BkQBUXQSETFgBFjgjFdFVxNk5TWpsmWdNM0pjH6/g/SYQYQu4kd8JydPzrK5wDee+cCwKvjsPj651Sjbaa3naNuenycgdnU+ISXrbQ222NyqS9aPYWFclqMLpntp8VnPISFtPgdC6GcMkz+6jEQsgPd0ziF63eHJu2dL47s4QxZpFn8AguFnNyv/VnWylBRFJHHCDIE4x+SB9JW6Yz/PhlPJtPp9Jz1wfu9i0uBD3+g0KcMubrgH13OqsbVh8plcAIZlw6vfMwO8PvO1cdZsDod3vcvmgmjRPpEtEL332EMZ+FU+owx5R9PsBbNz/FcoTvtMT6Yi+ZVf87qdJisLG7+mEiZowGO/thrP1pps4xgOcRfOGSbtHkS4CAgi00GCh51jm1gk2N55Ya+HK5Pu2j3M/D6rENNg/CEgunqYo6FnqcPbPrKUMWYua3kL3FWsWxOoUjoOBYBSqt/KkFaUEZ2kJJBkEhfS1hnaJeuN+PheXXp6wztJtBoxhNDwktTr7yJswf/M2bCYpAQGxh7wUxKgWFUwwgebQFZq2a7Xf3eu27ffcN1PsIXOMru/q303nv3etc2rY2AsVwd7RTfH36eHTpqFhhavOwQjFaWUB0/vy0dKbIyG9aCPDM9WRBO303VMO/ewMHU+HrbYgpiE28CAxEd2Y1nHb7moOijso+xGL9mwy/GOVRcbnJ++tn/uWHbMIl+dFdIRefiuvEnbPUZght5kjXeOuEJ1t/CtYHsC76J9nzjI0l5tIWXTUt6C+PuwKq5upxBOzDDKz9IjTMe8xqPdlK2kBMVTR/+YPFpF8lw/CYD7bjDwUyRMwL6juW51okanUmnMX9qaWgrR4MtsEE3wOGRCbsL1v+WF7TWz7HxW5+Aak51/nzR0ppC1FYEg2ChqbV67fHUebOWdlTHqH8jbUUpj8eBh0970jCczvbGhNwDjbQVkj+y5IZxtAUQYyFsPhNjdLgQNjBSQnza9tYRS/KZGjtHh7GGO4urZ5PiXgX4S2+mRYU6GVYfinn3OcJ7OAtoN1kf24sIP+MoocWdB+nAXETl8omn7/8Q7oHSaI0X3ScGetvABm6DkrWIEnjhvvA8PV5s4Bf37v6R+nlFWoI98BI9GyztZbdOvbI0ARXwEoXU0lx2G/QrN8Bn8Bjh8Wg5pMdo3IIPMTwfGknwHMwjvD/aLxuUPS8eK3C+xtbKNQbbjv5tdMAqjm0j2cN4NcIrUDWNYTIce1c3jWRPxOuifoywc5MIx0ejtgse7YCPLfUsPVZ3wEWgTlJjFDQ74ekOuLgTdl779BfEAGzWaO//AgAAAABJRU5ErkJggg==\"}],[\"total fertility rate singapore\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"singapore airlines tail strike\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"matched retirement savings scheme\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}]],\"1\":{\"ag\":{\"a\":{\"8\":[\"Trending searches\"]}},\"av\":\"6704053167573109355\",\"q\":\"3W3wo_K_WUcbqQosDNGiHI2Co8Q\"}}"
+        },
+        {
+          "name": "sb_wiz.qc",
+          "value": "1"
+        },
+        {
+          "name": "rc::a",
+          "value": "YWJ0bjBnM3hkcXgw"
+        }
+      ]
+    }
+  ]
+}
