@@ -108,13 +108,13 @@ class CultureSPAEvaluator:
 
         return ""
 
-    def generate_response(self, instruction: str, max_length: int = 512, temperature: float = 0.1) -> str:
+    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.1) -> str:
         """
         生成模型回复
 
         Args:
             instruction: 输入指令
-            max_length: 最大生成长度
+            max_new_tokens: 最大新生成token数量
             temperature: 温度参数
 
         Returns:
@@ -133,7 +133,7 @@ class CultureSPAEvaluator:
             with torch.no_grad():
                 outputs = self.model.generate(
                     inputs.to(self.device),
-                    max_length=min(input_length + max_length, 2048),
+                    max_new_tokens=max_new_tokens,
                     temperature=temperature,
                     do_sample=temperature > 0,
                     top_p=0.9 if temperature > 0 else None,
