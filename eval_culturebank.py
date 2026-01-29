@@ -259,7 +259,7 @@ class CultureBankEvaluator:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.0):
+    def generate_response(self, instruction: str, max_new_tokens: int = 1024, temperature: float = 0.0):
         """
         生成模型响应 - 限制输出长度，优先数字
 
@@ -309,19 +309,11 @@ class CultureBankEvaluator:
 
                     generated_tokens.append(next_token_id)
 
-                    # 检查是否已经生成了数字
-                    current_text = self.decode(generated_tokens).strip()
-
-                    # 如果第一个字符是数字1-4，立即停止
-                    if current_text and current_text[0] in '1234':
-                        break
-
                     # 创建新的token并拼接到序列
                     next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
                     current_tokens = torch.cat([current_tokens, next_token_tensor], dim=1)
 
                 except Exception as e:
-                    print(f"生成异常: {str(e)}")
                     break
 
         # 解码生成的文本
@@ -463,10 +455,6 @@ class CultureBankEvaluator:
 
             # 生成模型回复
             model_response = self.generate_response(instruction)
-
-            # 调试：如果前10个样本回应为空，打印调试信息
-            if i < 10 and not model_response:
-                print(f"⚠️  样本 {i+1} 回应为空，instruction长度: {len(instruction)}")
 
             # 提取答案
             extracted_answer = self.extract_answer(model_response)
