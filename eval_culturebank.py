@@ -155,12 +155,29 @@ class CultureBankModel:
 
             print(f"📊 找到{len(lora_pairs)}个LoRA权重对")
 
+            # 调试：显示基座模型的权重名称样例
+            base_keys = list(base_state_dict.keys())
+            print(f"🔍 基座模型权重样例 (前10个):")
+            for i, key in enumerate(base_keys[:10]):
+                print(f"  {i+1}. {key}")
+            print(f"  ... (共{len(base_keys)}个权重)")
+
             # 应用LoRA权重：W_new = W_base + lora_B @ lora_A
             applied_count = 0
             for base_name, pair in lora_pairs.items():
                 if 'A' in pair and 'B' in pair:
-                    # 构建基座模型权重名称
-                    base_key = base_name + '.weight'
+                    # 转换LoRA权重名称到基座模型权重名称
+                    # 从: base_model.model.model.layers.X.self_attn.q_proj
+                    # 到: model.layers.X.self_attn.q_proj.weight
+
+                    if base_name.startswith('base_model.model.'):
+                        # 移除base_model.model.前缀
+                        clean_name = base_name.replace('base_model.model.', '')
+                        base_key = clean_name + '.weight'
+                    else:
+                        base_key = base_name + '.weight'
+
+                    print(f"  🔍 查找权重: {base_name} -> {base_key}")
 
                     if base_key in base_state_dict:
                         try:
