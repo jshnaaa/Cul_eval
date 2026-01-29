@@ -167,9 +167,8 @@ def main():
     print("=" * 60)
 
     # 初始化评估器
-    # 如果你想使用本地Meta格式模型，取消下面一行的注释：
-    # evaluator = CultureBankEvaluator(local_base_model="./Llama-2-7b-chat")
-    evaluator = CultureBankEvaluator()  # 使用HF Hub模型
+    # 使用转换后的HF格式本地模型
+    evaluator = CultureBankEvaluator(local_base_model="./Llama-2-7b-chat-hf")
 
     # 加载模型
     if not evaluator.load_model():
