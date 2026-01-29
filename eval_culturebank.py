@@ -68,11 +68,24 @@ class CultureBankModel:
             return False
 
         try:
-            # 查找adapter权重文件
+            # 查找adapter权重文件，排除非权重文件
             adapter_files = []
+            excluded_files = ['training_args.bin', 'optimizer.bin', 'scheduler.bin', 'rng_state.pth']
+
             for file in os.listdir(self.adapter_path):
-                if file.endswith('.safetensors') or file.endswith('.bin'):
-                    adapter_files.append(file)
+                if file.endswith('.safetensors'):
+                    if 'adapter' in file.lower() or 'lora' in file.lower():
+                        adapter_files.append(file)
+                    else:
+                        print(f"  ⚠️  跳过可能的非adapter safetensors文件: {file}")
+                elif file.endswith('.bin') and file not in excluded_files:
+                    # 排除已知的非权重文件
+                    if 'adapter' in file.lower() or 'lora' in file.lower():
+                        adapter_files.append(file)
+                    else:
+                        print(f"  ⚠️  跳过可能的非adapter bin文件: {file}")
+                else:
+                    print(f"  ⚠️  跳过文件: {file}")
 
             if not adapter_files:
                 print(f"❌ 在{self.adapter_path}中未找到权重文件(.safetensors或.bin)")
@@ -83,21 +96,35 @@ class CultureBankModel:
             # 加载adapter权重
             for file in adapter_files:
                 file_path = os.path.join(self.adapter_path, file)
+                print(f"📄 处理文件: {file}")
 
-                if file.endswith('.safetensors') and HAS_SAFETENSORS:
-                    # 加载safetensors格式
-                    with safe_open(file_path, framework="pt", device="cpu") as f:
-                        for key in f.keys():
-                            self.adapter_weights[key] = f.get_tensor(key)
-                            print(f"  📋 加载权重: {key}, 形状: {self.adapter_weights[key].shape}")
-                elif file.endswith('.safetensors') and not HAS_SAFETENSORS:
-                    print(f"  ⚠️  跳过safetensors文件（需要安装safetensors包）: {file}")
-                elif file.endswith('.bin'):
-                    # 加载pytorch格式
-                    weights = torch.load(file_path, map_location="cpu")
-                    for key, value in weights.items():
-                        self.adapter_weights[key] = value
-                        print(f"  📋 加载权重: {key}, 形状: {value.shape}")
+                try:
+                    if file.endswith('.safetensors') and HAS_SAFETENSORS:
+                        # 加载safetensors格式
+                        with safe_open(file_path, framework="pt", device="cpu") as f:
+                            for key in f.keys():
+                                self.adapter_weights[key] = f.get_tensor(key)
+                                print(f"  📋 加载权重: {key}, 形状: {self.adapter_weights[key].shape}")
+                    elif file.endswith('.safetensors') and not HAS_SAFETENSORS:
+                        print(f"  ⚠️  跳过safetensors文件（需要安装safetensors包）: {file}")
+                    elif file.endswith('.bin'):
+                        # 加载pytorch格式
+                        weights = torch.load(file_path, map_location="cpu")
+
+                        # 检查是否是字典格式的权重文件
+                        if isinstance(weights, dict) and hasattr(weights, 'items'):
+                            for key, value in weights.items():
+                                if isinstance(value, torch.Tensor):
+                                    self.adapter_weights[key] = value
+                                    print(f"  📋 加载权重: {key}, 形状: {value.shape}")
+                                else:
+                                    print(f"  ⚠️  跳过非tensor项: {key} (类型: {type(value)})")
+                        else:
+                            print(f"  ⚠️  跳过非字典格式文件: {file} (类型: {type(weights)})")
+
+                except Exception as e:
+                    print(f"  ❌ 加载文件失败 {file}: {str(e)}")
+                    continue
 
             print(f"✅ 成功加载{len(self.adapter_weights)}个adapter权重")
             return True
