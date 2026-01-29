@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-CultureBank模型加载脚本 - 直接加载Meta格式基座模型 + LoRA adapter
-基于eval_llama2.py的成功加载方式
+CultureBank模型评测脚本 - 支持多数据集评测
+基于eval_llama2.py的成功加载方式 + eval_spa.py的评测逻辑
 """
 
 import json
 import os
+import re
+import argparse
 import torch
 import torch.nn.functional as F
 import sentencepiece as spm
 from eval_llama2 import Llama2Model, Transformer, ModelArgs
-from typing import Dict, Any
+from typing import Dict, Any, List
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
+from datetime import datetime
 
 # 尝试导入safetensors，如果不存在则使用备选方案
 try:
@@ -21,10 +26,10 @@ except ImportError:
     HAS_SAFETENSORS = False
 
 
-class CultureBankModel:
+class CultureBankEvaluator:
     def __init__(self, base_model_path="./Llama-2-7b-chat", adapter_path="./CultureBank-Llama2-SFT/sft_preference_v0.3"):
         """
-        初始化CultureBank模型
+        初始化CultureBank评测器
 
         Args:
             base_model_path: Meta格式基座模型路径
@@ -118,16 +123,10 @@ class CultureBankModel:
                 if file.endswith('.safetensors'):
                     if 'adapter' in file.lower() or 'lora' in file.lower():
                         adapter_files.append(file)
-                    else:
-                        print(f"  ⚠️  跳过可能的非adapter safetensors文件: {file}")
                 elif file.endswith('.bin') and file not in excluded_files:
                     # 排除已知的非权重文件
                     if 'adapter' in file.lower() or 'lora' in file.lower():
                         adapter_files.append(file)
-                    else:
-                        print(f"  ⚠️  跳过可能的非adapter bin文件: {file}")
-                else:
-                    print(f"  ⚠️  跳过文件: {file}")
 
             if not adapter_files:
                 print(f"❌ 在{self.adapter_path}中未找到权重文件(.safetensors或.bin)")
@@ -138,7 +137,6 @@ class CultureBankModel:
             # 加载adapter权重
             for file in adapter_files:
                 file_path = os.path.join(self.adapter_path, file)
-                print(f"📄 处理文件: {file}")
 
                 try:
                     if file.endswith('.safetensors') and HAS_SAFETENSORS:
@@ -146,9 +144,6 @@ class CultureBankModel:
                         with safe_open(file_path, framework="pt", device="cpu") as f:
                             for key in f.keys():
                                 self.adapter_weights[key] = f.get_tensor(key)
-                                print(f"  📋 加载权重: {key}, 形状: {self.adapter_weights[key].shape}")
-                    elif file.endswith('.safetensors') and not HAS_SAFETENSORS:
-                        print(f"  ⚠️  跳过safetensors文件（需要安装safetensors包）: {file}")
                     elif file.endswith('.bin'):
                         # 加载pytorch格式
                         weights = torch.load(file_path, map_location="cpu")
@@ -158,11 +153,6 @@ class CultureBankModel:
                             for key, value in weights.items():
                                 if isinstance(value, torch.Tensor):
                                     self.adapter_weights[key] = value
-                                    print(f"  📋 加载权重: {key}, 形状: {value.shape}")
-                                else:
-                                    print(f"  ⚠️  跳过非tensor项: {key} (类型: {type(value)})")
-                        else:
-                            print(f"  ⚠️  跳过非字典格式文件: {file} (类型: {type(weights)})")
 
                 except Exception as e:
                     print(f"  ❌ 加载文件失败 {file}: {str(e)}")
@@ -197,24 +187,12 @@ class CultureBankModel:
 
             print(f"📊 找到{len(lora_pairs)}个LoRA权重对")
 
-            # 调试：显示基座模型的权重名称样例
-            base_keys = list(base_state_dict.keys())
-            print(f"🔍 基座模型权重样例 (前10个):")
-            for i, key in enumerate(base_keys[:10]):
-                print(f"  {i+1}. {key}")
-            print(f"  ... (共{len(base_keys)}个权重)")
-
             # 应用LoRA权重：W_new = W_base + lora_B @ lora_A
             applied_count = 0
             for base_name, pair in lora_pairs.items():
                 if 'A' in pair and 'B' in pair:
                     # 转换LoRA权重名称到基座模型权重名称
-                    # 从: base_model.model.model.layers.X.self_attn.q_proj
-                    # 到: layers.X.attention.wq.weight (Meta Llama格式)
-
                     base_key = self.convert_lora_to_base_key(base_name)
-
-                    print(f"  🔍 查找权重: {base_name} -> {base_key}")
 
                     if base_key in base_state_dict:
                         try:
@@ -234,13 +212,10 @@ class CultureBankModel:
                             # 更新模型权重
                             base_state_dict[base_key].copy_(new_weight)
 
-                            print(f"  ✅ 应用LoRA: {base_name}")
                             applied_count += 1
 
                         except Exception as e:
                             print(f"  ❌ 应用LoRA失败 {base_name}: {str(e)}")
-                    else:
-                        print(f"  ⚠️  未找到对应基座权重: {base_key}")
 
             print(f"✅ 成功应用{applied_count}个LoRA权重对")
             return True
@@ -261,7 +236,7 @@ class CultureBankModel:
         if not self.load_adapter_weights():
             return False
 
-        # 3. 应用LoRA权重（简化版本）
+        # 3. 应用LoRA权重
         if not self.apply_lora_weights():
             return False
 
@@ -284,24 +259,35 @@ class CultureBankModel:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate(self, prompt: str, max_tokens: int = 100, temperature: float = 0.7):
-        """生成文本响应"""
+    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.0):
+        """
+        生成模型响应 - 优化版本，限制输出长度
+
+        Args:
+            instruction: 输入指令
+            max_new_tokens: 最大新生成token数量
+            temperature: 温度参数
+
+        Returns:
+            模型生成的回复
+        """
         if self.base_model is None or self.tokenizer is None:
             return "❌ 模型未加载"
+
+        # 格式化输入
+        prompt = self.format_chat_prompt(instruction)
 
         # 编码输入
         tokens = self.encode(prompt)
         tokens = torch.tensor([tokens], dtype=torch.long).to(self.device)
 
-        print(f"📏 输入tokens长度: {tokens.shape[1]}")
-
         generated_tokens = []
 
-        # 使用与eval_llama2.py相同的生成逻辑
+        # 高效生成逻辑
         with torch.no_grad():
             current_tokens = tokens.clone()
 
-            for i in range(max_tokens):
+            for i in range(max_new_tokens):
                 try:
                     # 前向传播
                     logits = self.base_model.forward(current_tokens, 0)
@@ -309,13 +295,8 @@ class CultureBankModel:
                     # 获取最后一个位置的logits
                     last_logits = logits[0, -1, :]
 
-                    # 应用temperature
-                    if temperature > 0:
-                        last_logits = last_logits / temperature
-                        probs = F.softmax(last_logits, dim=-1)
-                        next_token_id = torch.multinomial(probs, num_samples=1).item()
-                    else:
-                        next_token_id = torch.argmax(last_logits, dim=-1).item()
+                    # 贪婪解码（更快）
+                    next_token_id = torch.argmax(last_logits, dim=-1).item()
 
                     # 检查是否为结束token
                     if next_token_id == 2:  # </s> token
@@ -328,7 +309,6 @@ class CultureBankModel:
                     current_tokens = torch.cat([current_tokens, next_token_tensor], dim=1)
 
                 except Exception as e:
-                    print(f"❌ 生成步骤 {i+1} 失败: {str(e)}")
                     break
 
         # 解码生成的文本
@@ -338,34 +318,251 @@ class CultureBankModel:
         else:
             return ""
 
+    def extract_answer(self, response: str) -> str:
+        """
+        从模型回复中提取答案
+
+        Args:
+            response: 模型生成的回复
+
+        Returns:
+            提取的答案（1-4的数字），如果提取失败返回空字符串
+        """
+        # 清理响应文本
+        response = response.strip()
+
+        # 尝试多种模式提取答案
+        patterns = [
+            r'\b([1-4])\b',  # 匹配单独的数字1-4
+            r'答案[是为]?\s*([1-4])',  # 匹配"答案是X"
+            r'选择\s*([1-4])',  # 匹配"选择X"
+            r'([1-4])\s*[.。]',  # 匹配"X."
+            r'选项\s*([1-4])',  # 匹配"选项X"
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, response)
+            if match:
+                return match.group(1)
+
+        # 如果都没匹配到，返回响应的第一个字符（如果是1-4）
+        if len(response) > 0 and response[0] in '1234':
+            return response[0]
+
+        return ""
+
+    def load_dataset(self, data_file: str) -> List[Dict]:
+        """
+        加载数据集
+
+        Args:
+            data_file: 数据文件路径
+
+        Returns:
+            数据集列表
+        """
+        try:
+            with open(data_file, 'r', encoding='utf-8') as f:
+                dataset = json.load(f)
+
+            print(f"✅ 成功加载数据集: {data_file}")
+            print(f"📊 数据集大小: {len(dataset)} 条")
+            return dataset
+
+        except Exception as e:
+            print(f"❌ 加载数据集失败: {str(e)}")
+            return []
+
+    def calculate_metrics(self, predictions: List[str], ground_truths: List[str]) -> Dict:
+        """
+        计算评估指标
+
+        Args:
+            predictions: 预测结果列表
+            ground_truths: 真实标签列表
+
+        Returns:
+            评估指标字典
+        """
+        # 过滤掉空预测
+        filtered_predictions = []
+        filtered_ground_truths = []
+
+        for pred, truth in zip(predictions, ground_truths):
+            if pred:  # 只考虑有预测结果的样本
+                filtered_predictions.append(pred)
+                filtered_ground_truths.append(truth)
+
+        if not filtered_predictions:
+            return {}
+
+        # 计算基本指标
+        accuracy = accuracy_score(filtered_ground_truths, filtered_predictions)
+
+        # 计算精确率、召回率、F1
+        precision, recall, f1, support = precision_recall_fscore_support(
+            filtered_ground_truths, filtered_predictions, average='macro', zero_division=0
+        )
+
+        return {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1_macro': f1,
+            'total_samples': len(predictions),
+            'answered_samples': len(filtered_predictions),
+            'answer_extraction_rate': len(filtered_predictions) / len(predictions) if predictions else 0
+        }
+
+    def evaluate_dataset(self, data_file: str, dataset_tag: str, output_dir: str) -> Dict:
+        """
+        评估数据集
+
+        Args:
+            data_file: 数据文件路径
+            dataset_tag: 数据集标签
+            output_dir: 输出目录
+
+        Returns:
+            评估结果字典
+        """
+        # 加载数据集
+        dataset = self.load_dataset(data_file)
+        if not dataset:
+            return {}
+
+        # 准备结果存储
+        results = []
+        predictions = []
+        ground_truths = []
+
+        print(f"\n🚀 开始评估 {dataset_tag} 数据集...")
+        print("=" * 60)
+
+        # 批量处理数据
+        for i, item in enumerate(tqdm(dataset, desc="评估进度")):
+            instruction = item.get('instruction', '')
+            expected_output = item.get('output', '').strip()
+
+            if not instruction:
+                print(f"⚠️  第 {i+1} 条数据缺少instruction字段，跳过")
+                continue
+
+            # 生成模型回复
+            model_response = self.generate_response(instruction)
+
+            # 提取答案
+            extracted_answer = self.extract_answer(model_response)
+
+            # 判断是否一致
+            is_correct = extracted_answer == expected_output
+
+            # 打印前三条样本的详细信息
+            if i < 3:
+                print(f"\n=== 样本 {i+1} ===")
+                print(f"问题 (instruction): {instruction}")
+                print(f"期望答案 (output): {expected_output}")
+                print(f"模型生成回答: {model_response}")
+                print(f"提取答案: {extracted_answer}")
+                print(f"是否正确: {is_correct}")
+                print("=" * 60)
+
+            # 记录结果
+            result_item = {
+                "question_id": i + 1,
+                "instruction": instruction,
+                "expected_answer": expected_output,
+                "model_response": model_response,
+                "extracted_answer": extracted_answer,
+                "is_correct": is_correct
+            }
+
+            results.append(result_item)
+            predictions.append(extracted_answer)
+            ground_truths.append(expected_output)
+
+        # 计算评估指标
+        metrics = self.calculate_metrics(predictions, ground_truths)
+
+        # 组织最终结果
+        final_results = {
+            "dataset_info": {
+                "dataset_tag": dataset_tag,
+                "data_file": data_file,
+                "total_questions": len(dataset),
+                "answered_questions": metrics.get('answered_samples', 0),
+            },
+            "performance_metrics": {
+                "accuracy": metrics.get('accuracy', 0),
+                "precision": metrics.get('precision', 0),
+                "recall": metrics.get('recall', 0),
+                "f1_macro": metrics.get('f1_macro', 0),
+                "answer_extraction_rate": metrics.get('answer_extraction_rate', 0),
+            },
+            "statistics": {
+                "overall_accuracy": metrics.get('accuracy', 0),
+                "answer_extraction_rate": metrics.get('answer_extraction_rate', 0),
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # 保存详细结果
+        answers_file = os.path.join(output_dir, "generated_answers.json")
+        with open(answers_file, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+
+        # 保存评估结果
+        eval_file = os.path.join(output_dir, "eval_results.json")
+        with open(eval_file, 'w', encoding='utf-8') as f:
+            json.dump(final_results, f, ensure_ascii=False, indent=2)
+
+        print(f"\n✅ 评估完成!")
+        print(f"📊 整体准确率: {final_results['performance_metrics']['accuracy']:.4f}")
+        print(f"📊 答案提取率: {final_results['performance_metrics']['answer_extraction_rate']:.4f}")
+        print(f"📁 结果已保存到: {output_dir}")
+
+        return final_results
+
 
 def main():
     """主函数"""
-    print("🏛️  CultureBank模型加载测试")
+    parser = argparse.ArgumentParser(description="CultureBank模型评估脚本")
+    parser.add_argument("--dataset_id", type=int, required=True,
+                       help="数据集ID (2=CulturalBench, 3=normad, 4=cultureLLM, 5=cultureAtlas)")
+    parser.add_argument("--data_file", type=str, required=True,
+                       help="数据集文件路径")
+    parser.add_argument("--dataset_tag", type=str, required=True,
+                       help="数据集标签")
+    parser.add_argument("--output_dir", type=str, default="./",
+                       help="输出目录")
+
+    args = parser.parse_args()
+
+    print("🏛️  CultureBank模型评估器")
+    print(f"📊 数据集: {args.dataset_tag} (ID: {args.dataset_id})")
+    print(f"📁 数据文件: {args.data_file}")
     print("=" * 60)
 
-    # 初始化CultureBank模型
-    culture_model = CultureBankModel()
-
-    # 加载模型
-    if not culture_model.load_model():
-        print("❌ CultureBank模型加载失败，退出程序")
+    # 检查数据文件是否存在
+    if not os.path.exists(args.data_file):
+        print(f"❌ 数据文件不存在: {args.data_file}")
         return
 
-    # 测试用例
-    test_message = "Tell me about Chinese New Year traditions."
-    print(f"\n👤 用户输入: {test_message}")
+    # 创建输出目录
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    # 格式化为chat格式
-    chat_prompt = culture_model.format_chat_prompt(test_message)
-    print(f"🔤 格式化提示: {chat_prompt[:100]}...")
+    # 初始化评估器
+    evaluator = CultureBankEvaluator()
 
-    # 生成回复
-    print("🤖 CultureBank回应:")
-    response = culture_model.generate(chat_prompt, max_tokens=100, temperature=0.7)
-    print(response)
+    # 加载模型
+    if not evaluator.load_model():
+        print("❌ CultureBank模型加载失败")
+        return
 
-    print("\n🎉 测试完成!")
+    # 执行评估
+    evaluator.evaluate_dataset(args.data_file, args.dataset_tag, args.output_dir)
+
+    print("\n🎉 评估任务完成!")
 
 
 if __name__ == "__main__":
