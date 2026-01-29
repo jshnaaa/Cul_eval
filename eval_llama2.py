@@ -291,41 +291,46 @@ class Llama2Model:
         print(f"📏 输入tokens长度: {tokens.shape[1]}")
 
         generated_tokens = []
-        start_pos = 0
 
+        # 简化版本：每次都传入完整序列（虽然效率不高，但更稳定）
         with torch.no_grad():
+            current_tokens = tokens.clone()
+
             for i in range(max_tokens):
-                # 前向传播
-                if i == 0:
-                    # 第一次传入完整序列
-                    logits = self.model.forward(tokens, start_pos)
-                    start_pos = tokens.shape[1]
-                else:
-                    # 后续只传入新生成的token
-                    logits = self.model.forward(next_token.unsqueeze(0), start_pos)
-                    start_pos += 1
+                try:
+                    print(f"🔄 生成步骤 {i+1}, 当前序列长度: {current_tokens.shape}")
 
-                # 获取最后一个位置的logits
-                last_logits = logits[0, -1, :]
+                    # 前向传播 - 总是从位置0开始，传入完整序列
+                    logits = self.model.forward(current_tokens, 0)
+                    print(f"✅ 前向传播成功, logits形状: {logits.shape}")
 
-                # 应用temperature
-                if temperature > 0:
-                    last_logits = last_logits / temperature
-                    probs = F.softmax(last_logits, dim=-1)
-                    next_token = torch.multinomial(probs, num_samples=1)
-                else:
-                    next_token = torch.argmax(last_logits, dim=-1, keepdim=True)
+                    # 获取最后一个位置的logits
+                    last_logits = logits[0, -1, :]
 
-                next_token = next_token.reshape(1, 1)
+                    # 应用temperature
+                    if temperature > 0:
+                        last_logits = last_logits / temperature
+                        probs = F.softmax(last_logits, dim=-1)
+                        next_token_id = torch.multinomial(probs, num_samples=1).item()
+                    else:
+                        next_token_id = torch.argmax(last_logits, dim=-1).item()
 
-                # 检查是否为结束token
-                if next_token.item() == 2:  # </s> token
+                    print(f"🎯 生成token: {next_token_id}")
+
+                    # 检查是否为结束token
+                    if next_token_id == 2:  # </s> token
+                        print("🛑 遇到结束token，停止生成")
+                        break
+
+                    generated_tokens.append(next_token_id)
+
+                    # 创建新的token并拼接到序列
+                    next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
+                    current_tokens = torch.cat([current_tokens, next_token_tensor], dim=1)
+
+                except Exception as e:
+                    print(f"❌ 生成步骤 {i+1} 失败: {str(e)}")
                     break
-
-                generated_tokens.append(next_token.item())
-
-                # 拼接tokens用于下次输入
-                tokens = torch.cat([tokens, next_token], dim=1)
 
         # 解码生成的文本
         if generated_tokens:
