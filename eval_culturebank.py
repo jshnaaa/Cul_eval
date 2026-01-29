@@ -259,14 +259,13 @@ class CultureBankEvaluator:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 50, temperature: float = 0.0):
+    def generate_response(self, instruction: str, fast_mode: bool = True):
         """
-        生成模型响应 - 限制输出长度，优先数字
+        生成模型响应 - 超高速版本
 
         Args:
             instruction: 输入指令
-            max_new_tokens: 最大新生成token数量
-            temperature: 温度参数
+            fast_mode: 是否使用快速模式（只生成几个token）
 
         Returns:
             模型生成的回复
@@ -281,18 +280,26 @@ class CultureBankEvaluator:
         tokens = self.encode(prompt)
 
         # 限制输入长度，避免过长的context
-        if len(tokens) > 2000:
-            tokens = tokens[-2000:]  # 只保留最后2000个token
+        if len(tokens) > 1500:
+            tokens = tokens[-1500:]  # 进一步减少输入长度
 
-        tokens = torch.tensor([tokens], dtype=torch.long).to(self.device)
+        # 直接在GPU上创建tensor
+        tokens = torch.tensor([tokens], dtype=torch.long, device=self.device)
+
+        if fast_mode:
+            # 超快速模式：只生成5个token
+            max_tokens = 5
+        else:
+            # 普通模式：生成更多token用于观察
+            max_tokens = 30
 
         generated_tokens = []
 
-        # 恢复工作的生成逻辑，但添加严格控制和速度优化
+        # 高效生成逻辑
         with torch.no_grad():
             current_tokens = tokens.clone()
 
-            for i in range(max_new_tokens):
+            for i in range(max_tokens):
                 try:
                     # 前向传播
                     logits = self.base_model.forward(current_tokens, 0)
@@ -309,15 +316,12 @@ class CultureBankEvaluator:
 
                     generated_tokens.append(next_token_id)
 
-                    # 智能早期停止：如果已经生成了足够内容且包含答案，就停止
-                    if len(generated_tokens) >= 10:  # 至少生成10个token
+                    # 快速模式下的早期停止
+                    if fast_mode and len(generated_tokens) >= 3:
                         current_text = self.decode(generated_tokens).strip()
-                        # 检查是否包含数字答案模式
-                        import re
-                        if re.search(r'[1-4][\s\.]', current_text) or current_text.endswith(('1', '2', '3', '4')):
-                            # 再生成几个token然后停止
-                            if len(generated_tokens) >= 20:
-                                break
+                        # 如果已经包含数字，立即停止
+                        if any(c in '1234' for c in current_text):
+                            break
 
                     # 创建新的token并拼接到序列
                     next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
@@ -463,8 +467,11 @@ class CultureBankEvaluator:
                 print(f"⚠️  第 {i+1} 条数据缺少instruction字段，跳过")
                 continue
 
-            # 生成模型回复
-            model_response = self.generate_response(instruction)
+            # 生成模型回复 - 前3个样本用详细模式，其余用快速模式
+            if i < 3:
+                model_response = self.generate_response(instruction, fast_mode=False)  # 详细模式
+            else:
+                model_response = self.generate_response(instruction, fast_mode=True)   # 快速模式
 
             # 提取答案
             extracted_answer = self.extract_answer(model_response)
