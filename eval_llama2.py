@@ -57,7 +57,7 @@ def apply_rotary_emb(xq: torch.Tensor, xk: torch.Tensor, freqs_cis: torch.Tensor
 class Attention(nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
+        self.n_kv_heads = args.n_kv_heads
         self.n_local_heads = args.n_heads
         self.n_local_kv_heads = self.n_kv_heads
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
@@ -176,12 +176,16 @@ class ModelArgs:
         self.dim = kwargs.get('dim', 4096)
         self.n_layers = kwargs.get('n_layers', 32)
         self.n_heads = kwargs.get('n_heads', 32)
-        self.n_kv_heads = kwargs.get('n_kv_heads', None)
+        # 对于Llama-2-7B，n_kv_heads通常等于n_heads（没有GQA）
+        self.n_kv_heads = kwargs.get('n_kv_heads', self.n_heads)
         self.vocab_size = kwargs.get('vocab_size', 32000)
         self.multiple_of = kwargs.get('multiple_of', 256)
         self.ffn_dim_multiplier = kwargs.get('ffn_dim_multiplier', None)
         self.norm_eps = kwargs.get('norm_eps', 1e-5)
         self.max_seq_len = kwargs.get('max_seq_len', 4096)
+
+        # 添加调试信息
+        print(f"🔧 ModelArgs: dim={self.dim}, n_heads={self.n_heads}, n_kv_heads={self.n_kv_heads}, vocab_size={self.vocab_size}")
 
 
 class Llama2Model:
@@ -216,6 +220,20 @@ class Llama2Model:
 
             print(f"📋 模型参数: {params_dict}")
 
+            # 先加载tokenizer来获取准确的vocab_size
+            print("🔤 预加载tokenizer获取vocab_size...")
+            tokenizer_path = os.path.join(self.model_path, "tokenizer.model")
+            temp_tokenizer = spm.SentencePieceProcessor()
+            temp_tokenizer.load(tokenizer_path)
+            actual_vocab_size = temp_tokenizer.vocab_size()
+
+            # 修复vocab_size问题
+            if params_dict.get('vocab_size', -1) == -1:
+                print(f"⚠️  检测到vocab_size为-1，使用tokenizer实际大小: {actual_vocab_size}")
+                params_dict['vocab_size'] = actual_vocab_size
+            else:
+                print(f"📋 使用配置文件中的vocab_size: {params_dict['vocab_size']}")
+
             # 创建模型配置
             model_args = ModelArgs(**params_dict)
 
@@ -234,11 +252,9 @@ class Llama2Model:
             self.model = self.model.to(self.device)
             self.model.eval()
 
-            # 加载tokenizer
-            print("🔤 加载tokenizer...")
-            tokenizer_path = os.path.join(self.model_path, "tokenizer.model")
-            self.tokenizer = spm.SentencePieceProcessor()
-            self.tokenizer.load(tokenizer_path)
+            # 使用之前预加载的tokenizer
+            print("🔤 使用预加载的tokenizer...")
+            self.tokenizer = temp_tokenizer
 
             print("✅ 模型加载完成!")
             return True
