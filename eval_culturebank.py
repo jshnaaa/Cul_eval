@@ -259,7 +259,7 @@ class CultureBankEvaluator:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 1024, temperature: float = 0.0):
+    def generate_response(self, instruction: str, max_new_tokens: int = 50, temperature: float = 0.0):
         """
         生成模型响应 - 限制输出长度，优先数字
 
@@ -288,7 +288,7 @@ class CultureBankEvaluator:
 
         generated_tokens = []
 
-        # 恢复工作的生成逻辑，但添加严格控制
+        # 恢复工作的生成逻辑，但添加严格控制和速度优化
         with torch.no_grad():
             current_tokens = tokens.clone()
 
@@ -308,6 +308,16 @@ class CultureBankEvaluator:
                         break
 
                     generated_tokens.append(next_token_id)
+
+                    # 智能早期停止：如果已经生成了足够内容且包含答案，就停止
+                    if len(generated_tokens) >= 10:  # 至少生成10个token
+                        current_text = self.decode(generated_tokens).strip()
+                        # 检查是否包含数字答案模式
+                        import re
+                        if re.search(r'[1-4][\s\.]', current_text) or current_text.endswith(('1', '2', '3', '4')):
+                            # 再生成几个token然后停止
+                            if len(generated_tokens) >= 20:
+                                break
 
                     # 创建新的token并拼接到序列
                     next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
