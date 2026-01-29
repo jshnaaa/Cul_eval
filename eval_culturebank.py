@@ -41,6 +41,48 @@ class CultureBankModel:
         # adapter权重
         self.adapter_weights = {}
 
+    def convert_lora_to_base_key(self, lora_key: str) -> str:
+        """
+        将LoRA权重名称转换为基座模型权重名称
+
+        Args:
+            lora_key: LoRA权重名称，如 'base_model.model.model.layers.0.self_attn.q_proj'
+
+        Returns:
+            基座模型权重名称，如 'layers.0.attention.wq.weight'
+        """
+        # 移除前缀
+        if lora_key.startswith('base_model.model.'):
+            clean_name = lora_key.replace('base_model.model.', '')
+        else:
+            clean_name = lora_key
+
+        # HF格式到Meta Llama格式的映射
+        # model.layers.X.self_attn.Y_proj -> layers.X.attention.wY
+        if 'model.layers.' in clean_name and 'self_attn.' in clean_name:
+            import re
+            # 使用正则表达式提取层号和投影类型
+            pattern = r'model\.layers\.(\d+)\.self_attn\.([qkvo])_proj'
+            match = re.search(pattern, clean_name)
+
+            if match:
+                layer_idx = match.group(1)
+                proj_type = match.group(2)
+
+                # 映射投影类型
+                proj_mapping = {
+                    'q': 'wq',
+                    'k': 'wk',
+                    'v': 'wv',
+                    'o': 'wo'
+                }
+
+                if proj_type in proj_mapping:
+                    return f"layers.{layer_idx}.attention.{proj_mapping[proj_type]}.weight"
+
+        # 如果没有匹配到模式，返回原始名称加.weight
+        return clean_name + '.weight'
+
     def load_base_model(self):
         """加载Meta格式的基座模型"""
         print("🦙 加载Meta格式基座模型...")
@@ -168,14 +210,9 @@ class CultureBankModel:
                 if 'A' in pair and 'B' in pair:
                     # 转换LoRA权重名称到基座模型权重名称
                     # 从: base_model.model.model.layers.X.self_attn.q_proj
-                    # 到: model.layers.X.self_attn.q_proj.weight
+                    # 到: layers.X.attention.wq.weight (Meta Llama格式)
 
-                    if base_name.startswith('base_model.model.'):
-                        # 移除base_model.model.前缀
-                        clean_name = base_name.replace('base_model.model.', '')
-                        base_key = clean_name + '.weight'
-                    else:
-                        base_key = base_name + '.weight'
+                    base_key = self.convert_lora_to_base_key(base_name)
 
                     print(f"  🔍 查找权重: {base_name} -> {base_key}")
 
