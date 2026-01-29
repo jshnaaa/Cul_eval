@@ -259,9 +259,9 @@ class CultureBankEvaluator:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 1, temperature: float = 0.0):
+    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.0):
         """
-        生成模型响应 - 严格限制只输出1个token
+        生成模型响应 - 限制输出长度，优先数字
 
         Args:
             instruction: 输入指令
@@ -279,26 +279,57 @@ class CultureBankEvaluator:
 
         # 编码输入
         tokens = self.encode(prompt)
+
+        # 限制输入长度，避免过长的context
+        if len(tokens) > 2000:
+            tokens = tokens[-2000:]  # 只保留最后2000个token
+
         tokens = torch.tensor([tokens], dtype=torch.long).to(self.device)
 
-        # 只生成1个token
+        generated_tokens = []
+
+        # 恢复工作的生成逻辑，但添加严格控制
         with torch.no_grad():
-            try:
-                # 前向传播
-                logits = self.base_model.forward(tokens, 0)
+            current_tokens = tokens.clone()
 
-                # 获取最后一个位置的logits
-                last_logits = logits[0, -1, :]
+            for i in range(max_new_tokens):
+                try:
+                    # 前向传播
+                    logits = self.base_model.forward(current_tokens, 0)
 
-                # 贪婪解码
-                next_token_id = torch.argmax(last_logits, dim=-1).item()
+                    # 获取最后一个位置的logits
+                    last_logits = logits[0, -1, :]
 
-                # 解码这个token
-                generated_text = self.decode([next_token_id])
-                return generated_text.strip()
+                    # 贪婪解码
+                    next_token_id = torch.argmax(last_logits, dim=-1).item()
 
-            except Exception as e:
-                return ""
+                    # 检查是否为结束token
+                    if next_token_id == 2:  # </s> token
+                        break
+
+                    generated_tokens.append(next_token_id)
+
+                    # 检查是否已经生成了数字
+                    current_text = self.decode(generated_tokens).strip()
+
+                    # 如果第一个字符是数字1-4，立即停止
+                    if current_text and current_text[0] in '1234':
+                        break
+
+                    # 创建新的token并拼接到序列
+                    next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
+                    current_tokens = torch.cat([current_tokens, next_token_tensor], dim=1)
+
+                except Exception as e:
+                    print(f"生成异常: {str(e)}")
+                    break
+
+        # 解码生成的文本
+        if generated_tokens:
+            generated_text = self.decode(generated_tokens)
+            return generated_text.strip()
+        else:
+            return ""
 
     def extract_answer(self, response: str) -> str:
         """
@@ -432,6 +463,10 @@ class CultureBankEvaluator:
 
             # 生成模型回复
             model_response = self.generate_response(instruction)
+
+            # 调试：如果前10个样本回应为空，打印调试信息
+            if i < 10 and not model_response:
+                print(f"⚠️  样本 {i+1} 回应为空，instruction长度: {len(instruction)}")
 
             # 提取答案
             extracted_answer = self.extract_answer(model_response)
