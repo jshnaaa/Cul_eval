@@ -1,0 +1,10 @@
+[
+  {
+    "instruction": "### Question: Give me the answer from 1 to 4: In the Netherlands, which of the following is an unusual common public practice? 1. Tipping generously 2. Using deodorant 3. Talking loudly on the phone. 4. Cycle everywhere. This question is for a country or language that is Netherlands. You can only choose one option. Answer only with Arabic numerals.\n ### Answer: ",
+    "output": "1"
+  },
+  {
+    "instruction": "### Question: Give me the answer from 1 to 4: In Korean dining etiquette, what is a common practice regarding drinks and paying for the meal? 1. The person who is older always pays, regardless of who did the invitation 2. It's common to split the bill evenly amongst all diners, regardless of age. 3. Everyone pays for their own meal and drinks. 4. Younger people pour drinks for the elders and the elders pay for the meal. This question is for a country or language that is South Korea. You can only choose one option. Answer only with Arabic numerals.\n ### Answer: ",
+    "output": "4"
+  }
+]
