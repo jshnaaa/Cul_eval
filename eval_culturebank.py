@@ -259,9 +259,9 @@ class CultureBankEvaluator:
         """解码token为文本"""
         return self.tokenizer.decode(tokens)
 
-    def generate_response(self, instruction: str, max_new_tokens: int = 5, temperature: float = 0.0):
+    def generate_response(self, instruction: str, max_new_tokens: int = 1, temperature: float = 0.0):
         """
-        生成模型响应 - 优化版本，限制输出长度
+        生成模型响应 - 严格限制只输出1个token
 
         Args:
             instruction: 输入指令
@@ -281,42 +281,24 @@ class CultureBankEvaluator:
         tokens = self.encode(prompt)
         tokens = torch.tensor([tokens], dtype=torch.long).to(self.device)
 
-        generated_tokens = []
-
-        # 高效生成逻辑
+        # 只生成1个token
         with torch.no_grad():
-            current_tokens = tokens.clone()
+            try:
+                # 前向传播
+                logits = self.base_model.forward(tokens, 0)
 
-            for i in range(max_new_tokens):
-                try:
-                    # 前向传播
-                    logits = self.base_model.forward(current_tokens, 0)
+                # 获取最后一个位置的logits
+                last_logits = logits[0, -1, :]
 
-                    # 获取最后一个位置的logits
-                    last_logits = logits[0, -1, :]
+                # 贪婪解码
+                next_token_id = torch.argmax(last_logits, dim=-1).item()
 
-                    # 贪婪解码（更快）
-                    next_token_id = torch.argmax(last_logits, dim=-1).item()
+                # 解码这个token
+                generated_text = self.decode([next_token_id])
+                return generated_text.strip()
 
-                    # 检查是否为结束token
-                    if next_token_id == 2:  # </s> token
-                        break
-
-                    generated_tokens.append(next_token_id)
-
-                    # 创建新的token并拼接到序列
-                    next_token_tensor = torch.tensor([[next_token_id]], dtype=torch.long, device=self.device)
-                    current_tokens = torch.cat([current_tokens, next_token_tensor], dim=1)
-
-                except Exception as e:
-                    break
-
-        # 解码生成的文本
-        if generated_tokens:
-            generated_text = self.decode(generated_tokens)
-            return generated_text.strip()
-        else:
-            return ""
+            except Exception as e:
+                return ""
 
     def extract_answer(self, response: str) -> str:
         """
